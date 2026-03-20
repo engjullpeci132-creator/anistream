@@ -1,3 +1,4 @@
+'use client';
 import Link from 'next/link';
 import { getTitle, getCover, getScore, getEps } from '../lib/anilist';
 

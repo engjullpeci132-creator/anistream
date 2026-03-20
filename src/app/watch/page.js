@@ -2,30 +2,38 @@ import NavbarWrapper from '../../components/NavbarWrapper';
 import WatchClient from './WatchClient';
 import { getAnimeDetails, getTitle } from '../../lib/anilist';
 
-// Next 15: searchParams is a Promise
 export async function generateMetadata({ searchParams }) {
-  const sp    = await searchParams;
-  const title = sp?.title || 'Anime';
-  const ep    = sp?.ep    || '1';
-  return { title: `${title} Episode ${ep} — AniStream` };
+  try {
+    const sp    = await Promise.resolve(searchParams);
+    const title = String(sp?.title || 'Anime');
+    const ep    = String(sp?.ep    || '1');
+    return { title: `${title} — Episode ${ep} | AniStream` };
+  } catch {
+    return { title: 'AniStream' };
+  }
 }
 
 export default async function WatchPage({ searchParams }) {
-  const sp    = await searchParams;
-  const id    = parseInt(sp?.id    || '0', 10);
-  const ep    = parseInt(sp?.ep    || '1', 10);
-  const title = sp?.title || 'Anime';
-  const eps   = parseInt(sp?.eps   || '0', 10);
-  const cat   = sp?.cat === 'dub' ? 'dub' : 'sub';
+  const sp  = await Promise.resolve(searchParams);
+  const id  = parseInt(sp?.id  || '0', 10) || 0;
+  const ep  = parseInt(sp?.ep  || '1', 10) || 1;
+  const eps = parseInt(sp?.eps || '0', 10) || 0;
+  const cat = sp?.cat === 'dub' ? 'dub' : 'sub';
+  const titleParam = String(sp?.title || 'Anime');
 
-  const anime = id ? await getAnimeDetails(id) : null;
-  const animeTitle = anime ? getTitle(anime) : title;
+  let anime = null;
+  if (id > 0) {
+    anime = await getAnimeDetails(id);
+  }
 
-  const relations = (anime?.relations?.edges || []).filter(
-    e => ['SEQUEL', 'PREQUEL', 'SIDE_STORY'].includes(e.relationType) && e.node?.type === 'ANIME'
+  const animeTitle = anime ? getTitle(anime) : titleParam;
+  const maxEps     = anime?.episodes || eps || 100;
+
+  const relations = (anime?.relations?.edges ?? []).filter(
+    e => ['SEQUEL','PREQUEL','SIDE_STORY'].includes(e.relationType) && e.node?.type === 'ANIME'
   );
-  const recs = (anime?.recommendations?.nodes || [])
-    .map(n => n.mediaRecommendation)
+  const recs = (anime?.recommendations?.nodes ?? [])
+    .map(n => n?.mediaRecommendation)
     .filter(Boolean);
 
   return (
@@ -36,7 +44,7 @@ export default async function WatchPage({ searchParams }) {
         animeTitle={animeTitle}
         alId={id}
         initialEp={ep}
-        maxEps={anime?.episodes || eps || 100}
+        maxEps={maxEps}
         initialCat={cat}
         relations={relations}
         recs={recs}
