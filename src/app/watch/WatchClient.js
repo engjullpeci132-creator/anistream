@@ -7,7 +7,7 @@ export default function WatchClient({
 }) {
   const [ep, setEp]           = useState(initialEp);
   const [cat, setCat]         = useState(initialCat);
-  const [srv, setSrv]         = useState('hd-1');
+  const [srv, setSrv]         = useState('gogocdn');
   const [state, setState]     = useState('idle'); // idle|loading|playing|error
   const [streamUrl, setUrl]   = useState('');
   const [subs, setSubs]       = useState([]);
@@ -42,13 +42,13 @@ export default function WatchClient({
   useEffect(() => {
     if (fetchedRef.current) return;
     fetchedRef.current = true;
-    log1(`Searching HiAnime for: "${title}"`);
+    log1(`Fetching episodes via Consumet (AniList ID: ${alId})`);
     setState('loading');
-    fetch(`/api/episodes?title=${encodeURIComponent(title)}`)
+    fetch(`/api/episodes?id=${alId}&title=${encodeURIComponent(title)}`)
       .then(r => r.json())
       .then(d => {
         const count = d.episodes?.length || 0;
-        log1(`Found ${count} episodes (HiAnime: ${d.hid||'none'})${d.err?' err:'+d.err:''}`);
+        log1(`Found ${count} episodes via ${d.source||'unknown'}${d.err?' | '+d.err:''}`);
         if (count > 0) {
           setEps(d.episodes);
           setEpReady(true);
@@ -68,11 +68,12 @@ export default function WatchClient({
     setUrl('');
 
     const obj = episodes.find(e => e.number === ep) || episodes[ep-1] || episodes[0];
-    if (!obj?.episodeId) { log1(`No episode ID for ep ${ep}`); setState('error'); return; }
+    const epId = obj?.id || obj?.episodeId;
+    if (!epId) { log1(`No episode ID for ep ${ep}`); setState('error'); return; }
 
-    log1(`Fetching: ep${ep} | ${cat.toUpperCase()} | ${srv} | id:${obj.episodeId}`);
+    log1(`Stream: ep${ep} | GogoAnime | ${srv} | id:${epId}`);
 
-    fetch(`/api/stream?episodeId=${encodeURIComponent(obj.episodeId)}&category=${cat}&server=${srv}`)
+    fetch(`/api/stream?episodeId=${encodeURIComponent(epId)}&server=${srv}`)
       .then(r => r.json())
       .then(d => {
         if (d.url) {
@@ -169,8 +170,8 @@ export default function WatchClient({
   });
 
   const errMsg = !epReady
-    ? 'Anime not found on HiAnime. The aniwatch-api may be sleeping (free Render tier) — wait 30 seconds and click Retry.'
-    : 'No stream found. Try switching SUB ↔ DUB or a different server, then Retry.';
+    ? 'Anime not found via Consumet/GogoAnime. Click Retry — first load can be slow.'
+    : 'No stream found on any server. Try SUB ↔ DUB or click Retry.';
 
   return (
     <>
@@ -199,7 +200,7 @@ export default function WatchClient({
               <div style={{position:'absolute',inset:0,background:'#000',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:14}}>
                 <div className="spinner"/>
                 <span style={{color:'var(--mu)',fontSize:'.88rem'}}>
-                  {!epReady ? 'Finding anime on HiAnime…' : 'Loading stream…'}
+                  {!epReady ? 'Fetching from GogoAnime…' : 'Loading stream…'}
                 </span>
               </div>
             )}
@@ -215,7 +216,7 @@ export default function WatchClient({
                   <button onClick={()=>setCat(c=>c==='sub'?'dub':'sub')} style={btnStyle(true)}>
                     Try {cat==='sub'?'DUB':'SUB'}
                   </button>
-                  <button onClick={()=>{fetchedRef.current=false;setEpReady(false);setEps([]);setState('loading');fetch(`/api/episodes?title=${encodeURIComponent(title)}`).then(r=>r.json()).then(d=>{if(d.episodes?.length){setEps(d.episodes);setEpReady(true);}else setState('error');}).catch(()=>setState('error'));}} style={btnStyle(false)}>
+                  <button onClick={()=>{fetchedRef.current=false;setEpReady(false);setEps([]);setState('loading');fetch(`/api/episodes?id=${alId}&title=${encodeURIComponent(title)}`).then(r=>r.json()).then(d=>{if(d.episodes?.length){setEps(d.episodes);setEpReady(true);}else setState('error');}).catch(()=>setState('error'));}} style={btnStyle(false)}>
                     ↻ Retry
                   </button>
                 </div>
@@ -236,7 +237,7 @@ export default function WatchClient({
           {/* Controls */}
           <div style={{display:'flex',alignItems:'center',gap:8,marginTop:12,paddingBottom:12,borderBottom:'1px solid var(--b0)',flexWrap:'wrap'}}>
             <span style={{fontSize:'.78rem',color:'var(--mu)',fontWeight:700,textTransform:'uppercase',letterSpacing:'.5px'}}>Server:</span>
-            {['hd-1','hd-2','streamtape'].map(s=>(
+            {['gogocdn','streamsb','vidcdn'].map(s=>(
               <button key={s} onClick={()=>setSrv(s)} style={btnStyle(srv===s)}>{s.toUpperCase()}</button>
             ))}
             <button onClick={loadStream} style={btnStyle(false)}>↻ Retry</button>
